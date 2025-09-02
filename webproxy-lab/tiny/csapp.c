@@ -20,7 +20,17 @@
  * Updated 4/2013 droh: 
  *   - rio_readlineb: fixed edge case bug
  *   - rio_readnb: removed redundant EINTR check
- */
+
+1. 에러 처리 함수군
+2. 프로세스 제어 래퍼
+3. 시그널 설치/마스크 래퍼
+4. SIO
+5. Unix I/O 파일 / 디렉토리 / mmap / 동적할당 / stdio 래퍼
+6. 소켓/네트워킹 래퍼
+7. Pthreads/세마포어 래퍼
+8. RIO 패키지 핵심
+9. 클라이언트/서버 헬퍼
+
 /* $begin csapp.c */
 #include "csapp.h"
 

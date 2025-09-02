@@ -12,14 +12,16 @@ serve_static() : 정적 파일 전송
 serve_dynamic() : CGI 실행 후 출력 전송
 clienterror() : 에러 시 HTML 페이지 전송
 
+curl "http://localhost:33404/cgi-bin/adder?n1=7&n2=3"
+HEAD /home.html HTTP/1.0
+GET /home.html HTTP/1.0
 */
-
 
 #include "csapp.h"
 
 void doit(int fd)
 {
-  int is_static;                                                                                      // 정적/동적 컨텐츠 구분 플래그
+  int is_static, is_header = 0;                                                                                      // 정적/동적 컨텐츠 구분 플래그
   struct stat sbuf;                                                                                   // 파일 상태 정보 구조체
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   char filename[MAXLINE], cgiargs[MAXLINE];
@@ -30,8 +32,12 @@ void doit(int fd)
   printf("Request headers:\n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);                                                      // "GET /index.html HTTP/1.0" 파싱
-
-  if (strcasecmp(method, "GET"))                                                                      // Tiny 서버는 GET 메서드만 처리
+  
+  if (!strcasecmp(method, "HEAD"))
+  {
+    is_header = 1;
+  }
+  else if (strcasecmp(method, "GET"))                                                                      // Tiny 서버는 GET 메서드만 처리
   {
     clienterror(fd, method, "501", "Not implemented", 
                 "Tiny does not implement this method");
@@ -60,7 +66,7 @@ void doit(int fd)
       
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, is_header);
   }
   else
   {
@@ -125,7 +131,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)                         
   }
 }
 
-void serve_static(int fd, char *filename, int filesize)                                               // 정적 컨텐츠 전송
+void serve_static(int fd, char *filename, int filesize, int is_header)                                // 정적 컨텐츠 전송
 {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXLINE];
@@ -141,11 +147,22 @@ void serve_static(int fd, char *filename, int filesize)                         
   printf("Response headers:\n");
   printf("%s", buf);
 
-  srcfd = Open(filename, O_RDONLY, 0);                                                               // 파일을 메모리에 매핑 후 클라이언트에 전송
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+  if (is_header == 1)
+  {
+    return;
+  }
+
+  srcfd = Open(filename, O_RDONLY, 0);                                                                  // 파일 열기
+  
+  srcp = (char *)Malloc(filesize);
+  Rio_readn(srcfd, srcp, filesize);
+  
+  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);                                        // 파일 내용을 가상 메모리에 매핑
+
   Close(srcfd);
-  Rio_writen(fd, srcp, filesize);                                                                    // 파일 내용을 전송
-  Munmap(srcp, filesize);
+  Rio_writen(fd, srcp, filesize);                                                                       // 매핑된 메모리를 클라이언트 소켓에 그대로 write
+  // Munmap(srcp, filesize);                                                                            // 매핑 해제
+  Free(srcp);
 }
 
 void get_filetype(char *filename, char *filetype)                                                    // 파일 확장자에 따라 MIME 타입 지정
@@ -165,6 +182,10 @@ void get_filetype(char *filename, char *filetype)                               
   else if (strstr(filename, ".jpg"))
   {
     strcpy(filetype, "image/jpeg");
+  }
+  else if (strstr(filename, ".mp4"))
+  {
+    strcpy(filetype, "video/mp4");
   }
   else
   {
